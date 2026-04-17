@@ -4,7 +4,13 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Vero • мессенджер</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 <style>
+
 :root{
   --bg:#eef4ef;
   --bg2:#f7faf7;
@@ -32,7 +38,7 @@ body{
 }
 a{color:inherit;text-decoration:none}
 button,input,textarea,select{font:inherit}
-.wrap{max-width:1220px;margin:0 auto;padding:18px}
+.wrap{max-width:1280px;margin:0 auto;padding:18px}
 .topbar{
   display:flex;align-items:center;justify-content:space-between;gap:12px;
   position:sticky;top:0;z-index:20;
@@ -48,7 +54,7 @@ button,input,textarea,select{font:inherit}
   box-shadow: 0 10px 30px rgba(47,164,90,.22);
   display:grid;place-items:center;color:white;font-weight:900;
 }
-.shell{display:grid;grid-template-columns:330px 1fr;gap:18px;padding-top:18px}
+.shell{display:grid;grid-template-columns:360px 1fr;gap:18px;padding-top:18px}
 @media (max-width: 980px){ .shell{grid-template-columns:1fr} .topbar{flex-wrap:wrap} }
 .card{
   background:rgba(255,255,255,.84);
@@ -70,6 +76,7 @@ button,input,textarea,select{font:inherit}
 .btn.danger{background:var(--danger)}
 .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line);box-shadow:none}
 .btn.block{width:100%}
+.btn:disabled{opacity:.55;cursor:not-allowed}
 .input, .textarea, .select{
   width:100%;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.96);
   color:var(--text);padding:12px 14px;outline:none;
@@ -83,6 +90,8 @@ button,input,textarea,select{font:inherit}
   padding:8px 12px;border-radius:999px;background:#edf7f0;border:1px solid #cce7d3;
   font-size:13px;font-weight:700;color:#215c34;
 }
+.chip.soft{background:#f4f7f4;border-color:#dee6df;color:#4f6756}
+.chip.clickable{cursor:pointer}
 .pill{
   display:inline-flex;align-items:center;padding:7px 10px;border-radius:999px;
   background:#f3f7f4;border:1px solid var(--line);font-size:12px;color:var(--muted)
@@ -98,6 +107,7 @@ button,input,textarea,select{font:inherit}
   border:1px solid #d6e0d7;
 }
 .avatar.big{width:96px;height:96px;border-radius:28px}
+.avatar.tiny{width:28px;height:28px;border-radius:10px}
 .col{display:grid;gap:4px;min-width:0}
 .name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .desc{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -106,58 +116,108 @@ button,input,textarea,select{font:inherit}
   padding:10px 14px;border-radius:14px;border:1px solid var(--line);background:#fff;color:var(--muted);
   font-weight:800;cursor:pointer
 }
-.tab.active{background:var(--accent);color:white;border-color:var(--accent)}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-@media (max-width: 700px){ .grid2{grid-template-columns:1fr} }
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-@media (max-width: 900px){ .grid3{grid-template-columns:1fr} }
-.divider{height:1px;background:var(--line);margin:12px 0}
-.small{font-size:12px}
-.mini{font-size:11px;color:var(--muted)}
-.kbd{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;background:#f4f7f4;border:1px solid var(--line);padding:2px 6px;border-radius:8px}
+.tab.active{background:linear-gradient(145deg, rgba(47,164,90,.16), rgba(47,164,90,.04));color:var(--accent2);border-color:#b8dfc1}
 .hero{
-  padding:18px;border-radius:28px;background:linear-gradient(135deg, rgba(47,164,90,.10), rgba(255,255,255,.80));
-  border:1px solid rgba(205,229,212,.95);
+  display:grid;gap:14px;padding:18px;border-radius:26px;
+  background:linear-gradient(135deg, rgba(47,164,90,.13), rgba(255,255,255,.86));
+  border:1px solid rgba(184,223,193,.9);
 }
-.chatbox{
-  display:grid;grid-template-rows:auto 1fr auto;min-height:calc(100vh - 110px);
-  gap:12px;padding:16px;
-}
-.messages{
-  display:flex;flex-direction:column;gap:10px;overflow:auto;padding-right:4px;min-height:40vh;
-}
+.hero h1{margin:0;font-size:30px;line-height:1.05}
+.hero p{margin:0;color:var(--muted);max-width:62ch}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width: 700px){ .grid2{grid-template-columns:1fr} }
+.panel-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.sep{height:1px;background:var(--line);margin:12px 0}
+.badge{display:inline-flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:999px;background:#e9f6ed;color:#2f7a45;font-size:12px;font-weight:800}
+.small{font-size:12px;color:var(--muted)}
+.empty{padding:18px;border:1px dashed #cfd9d0;border-radius:18px;background:rgba(255,255,255,.5);color:var(--muted);text-align:center}
+.avatarBox{display:grid;gap:12px;justify-items:start}
+.canvasWrap{border:1px solid var(--line);border-radius:22px;overflow:hidden;background:white}
+canvas{display:block;touch-action:none}
+.msgs{display:grid;gap:10px;max-height:62vh;overflow:auto;padding-right:4px}
 .msg{
-  max-width:min(740px, 85%);padding:11px 13px;border-radius:18px;border:1px solid var(--line);
-  background:#fff;box-shadow:0 8px 18px rgba(0,0,0,.03)
+  max-width:78%;padding:12px 14px;border-radius:18px;border:1px solid var(--line);background:#fff;box-shadow:0 6px 18px rgba(24,44,28,.05);
 }
-.msg.me{margin-left:auto;background:#ebf8ef;border-color:#cde5d4}
-.msg .time{display:block;margin-top:4px;font-size:11px;color:var(--muted)}
-.composer{display:flex;gap:10px;align-items:flex-end}
-.composer textarea{min-height:56px;max-height:180px}
-.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.notice{
-  padding:12px 14px;border-radius:18px;border:1px dashed #b8d8c0;background:#f7fbf7;color:#355541
+.msg.me{margin-left:auto;background:#edf8f0;border-color:#cfe8d5}
+.msg .meta{margin-top:6px;font-size:11px;color:var(--muted)}
+.chatHead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px}
+.chatPeer{display:flex;align-items:center;gap:12px;min-width:0}
+.chatPeer .col{min-width:0}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap}
+.callOverlay{
+  position:fixed;inset:0;background:rgba(11,17,13,.72);display:none;align-items:center;justify-content:center;padding:18px;z-index:50;
 }
-.modal{
-  position:fixed;inset:0;background:rgba(10,18,12,.45);display:none;align-items:center;justify-content:center;padding:18px;z-index:50;
+.callCard{
+  width:min(980px, 100%);
+  background:rgba(255,255,255,.96);border-radius:28px;overflow:hidden;border:1px solid rgba(255,255,255,.35);
+  box-shadow:0 30px 80px rgba(0,0,0,.28);
 }
-.modal.on{display:flex}
-.modal .card{max-width:560px;width:100%}
-.tagbox{display:flex;flex-wrap:wrap;gap:8px}
-.tagbox .chip{cursor:pointer}
-.callpanel{
-  position:relative;display:none;gap:10px;padding:12px;border:1px solid var(--line);border-radius:22px;background:#fff;
-}
-.callpanel.on{display:grid}
-.videoGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-@media (max-width: 700px){ .videoGrid{grid-template-columns:1fr} }
-video{width:100%;max-height:280px;background:#101816;border-radius:18px;object-fit:cover}
-canvas{max-width:100%;border-radius:24px;border:1px solid var(--line);background:#fff;touch-action:none}
+.callTop{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.callBody{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px}
+@media (max-width: 850px){ .callBody{grid-template-columns:1fr} }
+.videobox{position:relative;border-radius:22px;overflow:hidden;background:#09110b;min-height:240px;border:1px solid #dfe7e0}
+.videobox video{width:100%;height:100%;object-fit:cover;display:block}
+.videolabel{position:absolute;left:12px;top:12px;z-index:2;padding:6px 10px;border-radius:999px;background:rgba(0,0,0,.45);color:white;font-size:12px}
+.callControls{display:flex;gap:10px;flex-wrap:wrap;padding:0 14px 14px}
+.callActions{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:0 14px 14px}
+.kbd{font-size:12px;color:var(--muted);padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:#fafcfa}
+.notice{padding:12px 14px;border-radius:16px;background:#fff8e7;border:1px solid #f0ddb0;color:#745b17}
+
 </style>
 </head>
 <body>
+
+<div class="topbar">
+  <div class="brand"><div class="logo">V</div><div><div>Vero</div><div class="small">главная</div></div></div>
+  <div class="tabs">
+    <a class="tab active" href="app.html">Мессенджер</a>
+    <a class="tab" href="popular.html">Популярное</a>
+    <a class="tab" href="profile.html">Профиль</a>
+    <a class="tab" href="register.html" id="logoutLink">Выйти</a>
+  </div>
+</div>
+<div class="wrap">
+  <div class="hero" style="margin-bottom:16px">
+    <div class="row wrap" style="justify-content:space-between">
+      <div>
+        <h1>Vero</h1>
+        <p>Пиши людям по нику, открывай чат в один клик, смотри кто онлайн и следи за популярными играми и хештегами.</p>
+      </div>
+      <div class="row wrap">
+        <span class="badge" id="onlineCount">0 онлайн</span>
+        <span class="pill">поиск по нику</span>
+      </div>
+    </div>
+    <input id="search" class="input" placeholder="Найти человека по нику" />
+  </div>
+
+  <div class="shell">
+    <div class="stack">
+      <div class="card pad">
+        <div id="meCard"></div>
+      </div>
+      <div class="card pad">
+        <div class="panel-title"><h2 class="title">Контакты</h2><span class="pill">чаты</span></div>
+        <div id="contacts" class="list"></div>
+      </div>
+    </div>
+
+    <div class="stack">
+      <div class="card pad">
+        <div class="panel-title"><h2 class="title">Люди онлайн</h2><span class="pill">живой список</span></div>
+        <div id="people" class="list"></div>
+      </div>
+      <div class="card pad">
+        <div class="panel-title"><h2 class="title">Что сейчас вверху</h2><a class="pill" href="popular.html">открыть всё</a></div>
+        <div id="fastPopular" class="grid2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
-const FIREBASE_CONFIG = {
+
+const firebaseConfig = {
   "apiKey": "AIzaSyDGUSKBiKvEqSOg6QqY6iHC94C-SoxAujQ",
   "authDomain": "veromesendger.firebaseapp.com",
   "projectId": "veromesendger",
@@ -166,384 +226,326 @@ const FIREBASE_CONFIG = {
   "appId": "1:424869261701:web:289a4b7e386b960d6314ec",
   "measurementId": "G-C63GM9P098"
 };
-
-firebase.initializeApp(FIREBASE_CONFIG);
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
-db.settings({ ignoreUndefinedProperties: true });
+const users = db.collection('users');
+const chats = db.collection('chats');
+const calls = db.collection('calls');
 
-const $ = (sel, root=document) => root.querySelector(sel);
-const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
-const esc = (s='') => String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-const uid = () => auth.currentUser?.uid || null;
-const nowMs = () => Date.now();
+const GAME_SUGGESTIONS = ['Half-Life','Half-Life 2','Portal','Portal 2','Team Fortress 2','Counter-Strike 2','Minecraft','Roblox','GTA V','GTA San Andreas','Terraria','Rust','Fortnite','Valorant','Dota 2','CS:GO','Among Us','Phasmophobia','Lethal Company','The Binding of Isaac','Hades','Stardew Valley'];
+const TAG_SUGGESTIONS = ['#art','#gaming','#meme','#music','#anime','#programming','#friends','#chat','#design','#edit'];
 
-function cleanNick(text='') {
-  return String(text).trim().replace(/^@+/, '').replace(/\s+/g, ' ').slice(0, 24);
+const DAY_MS = 86400000;
+
+function nickKey(v){
+  return String(v || '').trim().toLowerCase().replace(/\s+/g,' ');
 }
-
-function slug(text='') {
-  return String(text).trim().toLowerCase()
-    .replace(/^#+/, '')
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 42);
+function cleanNick(v){
+  return String(v || '').trim().replace(/^@+/, '').replace(/\s+/g,' ').slice(0,24);
 }
-
-function parseCSV(text='') {
-  return [...new Set(String(text).split(',').map(x => x.trim()).filter(Boolean))].slice(0, 30);
+function asList(v){
+  if (Array.isArray(v)) return v;
+  if (!v) return [];
+  return String(v).split(',').map(s => s.trim()).filter(Boolean);
 }
-
-function parseTags(text='') {
-  return [...new Set(String(text).split(',').map(x => x.trim()).map(x => x.replace(/^#+/, '')).map(slug).filter(Boolean))];
+function formatTime(v){
+  if (!v || !v.toDate) return '';
+  return new Intl.DateTimeFormat('ru-RU', {hour:'2-digit', minute:'2-digit'}).format(v.toDate());
 }
-
-function userName(u) {
-  return u?.nickname || u?.displayName || u?.email?.split('@')[0] || 'Без ника';
+function formatDate(v){
+  if (!v || !v.toDate) return '';
+  return new Intl.DateTimeFormat('ru-RU', {day:'2-digit', month:'2-digit', year:'numeric'}).format(v.toDate());
 }
-
-function avatarFallback(letter='V') {
-  return 'data:image/svg+xml;utf8,' + encodeURIComponent(`\
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <defs>
-    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0" stop-color="#2fa45a"/>
-      <stop offset="1" stop-color="#9be0b5"/>
-    </linearGradient>
-  </defs>
-  <rect width="256" height="256" rx="44" fill="#eef6f0"/>
-  <circle cx="128" cy="128" r="82" fill="url(#g)" opacity=".92"/>
-  <text x="50%" y="56%" text-anchor="middle" dominant-baseline="middle"
-        fill="#fff" font-family="Arial, sans-serif" font-size="84" font-weight="700">__LETTER__</text>
-</svg>`).replace('__LETTER__', letter);
+function initials(nick){
+  const p = String(nick || '?').trim().split(/\s+/).filter(Boolean);
+  const a = (p[0] || '?')[0] || '?';
+  const b = (p[1] || '')[0] || '';
+  return (a + b).toUpperCase();
 }
-
-function fmtTime(ts) {
-  if (!ts) return '—';
-  const d = ts.toDate ? ts.toDate() : new Date(ts);
-  return d.toLocaleString([], { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+function avatarHtml(profile, extraClass=''){
+  const cls = `avatar ${extraClass}`.trim();
+  const alt = (profile && profile.nick) ? profile.nick : 'avatar';
+  if (profile && profile.avatarData) return `<img class="${cls}" src="${profile.avatarData}" alt="${alt}">`;
+  if (profile && profile.photoURL) return `<img class="${cls}" src="${profile.photoURL}" alt="${alt}">`;
+  return `<div class="${cls}" style="display:grid;place-items:center;background:linear-gradient(145deg, rgba(47,164,90,.18), rgba(47,164,90,.05));color:#235d34;font-weight:900">${initials(profile && profile.nick ? profile.nick : '?')}</div>`;
 }
-
-function lastSeenText(ms) {
-  if (!ms) return 'офлайн';
-  const diff = nowMs() - ms;
-  if (diff < 2 * 60 * 1000) return 'онлайн';
-  if (diff < 60 * 60 * 1000) return 'был(а) недавно';
-  return 'офлайн';
+function chatIdFor(a, b){
+  return [a, b].sort().join('__');
 }
-
-async function loadProfile(id) {
-  const snap = await db.collection('users').doc(id).get();
-  return snap.exists ? snap.data() : null;
+function esc(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-
-async function ensureOwnProfile() {
-  const me = auth.currentUser;
-  if (!me) return null;
-  const ref = db.collection('users').doc(me.uid);
+function requireAuth(onReady){
+  auth.onAuthStateChanged(async user => {
+    if (!user) {
+      location.href = 'register.html';
+      return;
+    }
+    await touchPresence(user);
+    if (onReady) onReady(user);
+  });
+}
+async function touchPresence(user){
+  const ref = users.doc(user.uid);
   const snap = await ref.get();
-  if (!snap.exists) {
-    const nickFromGoogle = cleanNick(me.displayName || me.email?.split('@')[0] || '');
-    await ref.set({
-      uid: me.uid,
-      email: me.email || '',
-      nickname: nickFromGoogle,
-      nicknameChangedAtMs: 0,
-      description: '',
-      hashtags: [],
-      games: [],
-      avatarDataUrl: '',
-      lastSeen: nowMs(),
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-  } else {
-    await ref.set({
-      uid: me.uid,
-      email: me.email || '',
-      lastSeen: nowMs(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-  }
-  return await loadProfile(me.uid);
-}
-
-async function saveOwnProfile(partial) {
-  const me = auth.currentUser;
-  if (!me) throw new Error('not-auth');
-  await db.collection('users').doc(me.uid).set({
-    uid: me.uid,
-    email: me.email || '',
-    ...partial,
-    lastSeen: nowMs(),
+  const base = snap.exists ? (snap.data() || {}) : {};
+  const nick = base.nick || user.displayName || (user.email ? user.email.split('@')[0] : 'user');
+  await ref.set({
+    uid: user.uid,
+    email: user.email || base.email || '',
+    photoURL: user.photoURL || base.photoURL || '',
+    nick,
+    nickLower: nickKey(nick),
+    avatarData: base.avatarData || '',
+    about: base.about || '',
+    tags: Array.isArray(base.tags) ? base.tags : [],
+    games: Array.isArray(base.games) ? base.games : [],
+    lastNickChangeAt: base.lastNickChangeAt || null,
+    lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
+    createdAt: base.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   }, { merge: true });
 }
-
-async function signOutSafe() {
-  await auth.signOut();
-  location.href = 'register.html';
+async function getMe(){
+  const user = auth.currentUser;
+  if (!user) return null;
+  const snap = await users.doc(user.uid).get();
+  return { user, data: snap.exists ? snap.data() : null };
 }
-
-function chatIdFor(a, b) {
-  return [a, b].sort().join('__');
+async function getUser(uid){
+  const snap = await users.doc(uid).get();
+  return snap.exists ? snap.data() : null;
 }
-
-function asNickQuery(q='') {
-  return String(q).trim().toLowerCase().replace(/^@+/, '');
-}
-
-async function pingPresence() {
-  const me = auth.currentUser;
-  if (!me) return;
-  try {
-    await db.collection('users').doc(me.uid).set({
-      lastSeen: nowMs(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-  } catch (e) {}
-}
-
-function startPresenceHeartbeat() {
-  pingPresence();
-  const t = setInterval(pingPresence, 45000);
-  window.addEventListener('beforeunload', () => clearInterval(t));
-}
-
-function el(tag, attrs={}, html='') {
-  const node = document.createElement(tag);
-  Object.entries(attrs).forEach(([k, v]) => {
-    if (v === null || v === undefined) return;
-    if (k === 'class') node.className = v;
-    else if (k === 'text') node.textContent = v;
-    else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2), v);
-    else node.setAttribute(k, v);
+function createTokenChips(container, items, onRemove){
+  container.innerHTML = '';
+  (items || []).forEach((item, idx) => {
+    const el = document.createElement('span');
+    el.className = 'chip';
+    el.innerHTML = `${esc(item)} <span style="opacity:.7">×</span>`;
+    el.title = 'Убрать';
+    if (onRemove) el.addEventListener('click', () => onRemove(idx));
+    container.appendChild(el);
   });
-  if (html) node.innerHTML = html;
-  return node;
+}
+function setText(el, text){ if (el) el.textContent = text ?? ''; }
+async function ensureNickUnique(nick, myUid){
+  const key = nickKey(nick);
+  const q = await users.where('nickLower', '==', key).limit(1).get();
+  return q.empty || q.docs[0].id === myUid;
+}
+async function createOrUpdateProfile(user, nickOverride){
+  const ref = users.doc(user.uid);
+  const snap = await ref.get();
+  const current = snap.exists ? snap.data() : {};
+  const chosen = cleanNick(nickOverride || current.nick || user.displayName || (user.email ? user.email.split('@')[0] : 'user'));
+  if (!chosen) throw new Error('Ник пустой');
+  if (!(await ensureNickUnique(chosen, user.uid))) throw new Error('Этот ник уже занят');
+  const nickChanged = current.nick && nickKey(current.nick) !== nickKey(chosen);
+  if (nickChanged && current.lastNickChangeAt && current.lastNickChangeAt.toDate) {
+    const diff = Date.now() - current.lastNickChangeAt.toDate().getTime();
+    if (diff < DAY_MS) throw new Error('Ник можно менять только раз в день');
+  }
+  await ref.set({
+    uid: user.uid,
+    email: user.email || current.email || '',
+    photoURL: user.photoURL || current.photoURL || '',
+    nick: chosen,
+    nickLower: nickKey(chosen),
+    about: current.about || '',
+    tags: Array.isArray(current.tags) ? current.tags : [],
+    games: Array.isArray(current.games) ? current.games : [],
+    avatarData: current.avatarData || '',
+    lastNickChangeAt: nickChanged ? firebase.firestore.FieldValue.serverTimestamp() : (current.lastNickChangeAt || null),
+    lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
+    createdAt: current.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+}
+function openChat(uid){
+  location.href = 'chat.html?u=' + encodeURIComponent(uid);
+}
+function go(url){ location.href = url; }
+async function ensureChat(me, peer){
+  const id = chatIdFor(me, peer);
+  const ref = chats.doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    await ref.set({
+      participants: [me, peer],
+      participantsKey: id,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      lastMessage: '',
+      lastSenderId: ''
+    });
+  }
+  return id;
+}
+function timeAgo(ts){
+  if (!ts || !ts.toDate) return '—';
+  const d = ts.toDate().getTime();
+  const diff = Date.now() - d;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'только что';
+  if (min < 60) return `${min} мин назад`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} ч назад`;
+  return `${Math.floor(h/24)} дн назад`;
+}
+function onlineLabel(lastSeen){
+  if (!lastSeen || !lastSeen.toDate) return 'неизвестно';
+  const diff = Date.now() - lastSeen.toDate().getTime();
+  if (diff < 2 * 60 * 1000) return 'сейчас онлайн';
+  if (diff < 10 * 60 * 1000) return 'недавно онлайн';
+  return timeAgo(lastSeen);
 }
 
-function readQuery() {
-  const p = new URLSearchParams(location.search);
-  return {
-    uid: p.get('uid') || p.get('u') || '',
-    tab: p.get('tab') || ''
-  };
-}
 
-function goToChat(otherUid) {
-  location.href = `chat.html?u=${encodeURIComponent(otherUid)}`;
-}
-
-function safeText(text='') {
-  return String(text).replace(/\s+/g, ' ').trim();
-}
-</script>
-<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore-compat.js"></script>
-
-<div class="topbar">
-  <div class="brand">
-    <div class="logo">V</div>
-    <div>
-      <div style="font-weight:1000">Vero</div>
-      <div class="small muted">чат • люди • популярное</div>
-    </div>
-  </div>
-  <div class="row">
-    <a class="btn secondary" href="profile.html">Профиль</a>
-    <a class="btn secondary" href="popular.html">Популярное</a>
-    <button class="btn danger" id="logoutBtn">Выйти</button>
-  </div>
-</div>
-
-<div class="wrap shell">
-  <aside class="stack">
-    <div class="card pad">
-      <div class="row">
-        <img class="avatar" id="meAvatar" alt="avatar" />
-        <div class="col">
-          <div class="name" id="meName">...</div>
-          <div class="desc" id="meDesc">...</div>
-          <div class="mini" id="meState">...</div>
-        </div>
-      </div>
-      <div class="divider"></div>
-      <input class="input" id="searchUser" placeholder="Найти по нику, тегу или игре" />
-    </div>
-
-    <div class="card pad">
-      <div class="row" style="justify-content:space-between">
-        <h3 class="title" style="font-size:18px">Контакты</h3>
-        <span class="pill" id="chatCount">0</span>
-      </div>
-      <div class="list" id="chatList" style="margin-top:12px"></div>
-    </div>
-
-    <div class="card pad">
-      <div class="row" style="justify-content:space-between">
-        <h3 class="title" style="font-size:18px">Люди</h3>
-        <span class="pill" id="peopleCount">0</span>
-      </div>
-      <div class="list" id="userList" style="margin-top:12px"></div>
-    </div>
-  </aside>
-
-  <main class="stack">
-    <div class="hero card pad">
-      <div class="row" style="justify-content:space-between;align-items:flex-start;gap:18px">
-        <div class="stack" style="gap:8px">
-          <h1 style="margin:0;font-size:32px;line-height:1.05">Vero</h1>
-          <p class="sub">Здесь показываются люди, чаты и быстрый поиск по нику. UID не светится в интерфейсе.</p>
-        </div>
-        <div class="row wrap">
-          <span class="pill" id="publicCount">0 профилей</span>
-          <span class="pill">онлайн <span id="onlineCount">0</span></span>
-        </div>
-      </div>
-    </div>
-
-    <div class="grid3">
-      <div class="card pad">
-        <span class="muted small">Твой ник</span>
-        <div class="title" id="heroName">...</div>
-        <div class="sub" id="heroDesc">...</div>
-      </div>
-      <div class="card pad">
-        <span class="muted small">Теги</span>
-        <div class="tagbox" id="heroTags" style="margin-top:10px"></div>
-      </div>
-      <div class="card pad">
-        <span class="muted small">Игры и фандомы</span>
-        <div class="tagbox" id="heroGames" style="margin-top:10px"></div>
-      </div>
-    </div>
-
-    <div class="card pad">
-      <div class="row" style="justify-content:space-between;align-items:flex-start">
-        <div class="stack" style="gap:4px">
-          <h2 class="title">Главный экран</h2>
-          <p class="sub">Нажми на человека, чтобы открыть отдельный чат и звонок.</p>
-        </div>
-        <span class="pill">поиск без uid</span>
-      </div>
-    </div>
-  </main>
-</div>
-
-<script>
-let meProfile = null;
+const search = document.getElementById('search');
+const contactsEl = document.getElementById('contacts');
+const peopleEl = document.getElementById('people');
+const meCard = document.getElementById('meCard');
+const onlineCount = document.getElementById('onlineCount');
+const fastPopular = document.getElementById('fastPopular');
+let me = null;
 let allUsers = [];
-let chats = [];
+let chatProfiles = new Map();
+let currentSearch = '';
 
-async function renderMe(user) {
-  meProfile = await ensureOwnProfile();
-  $('#meName').textContent = userName(meProfile);
-  $('#heroName').textContent = userName(meProfile);
-  $('#meDesc').textContent = meProfile?.description || 'Без описания';
-  $('#heroDesc').textContent = meProfile?.description || 'Без описания';
-  $('#meState').textContent = lastSeenText(meProfile?.lastSeen);
-  const av = meProfile?.avatarDataUrl || avatarFallback((userName(meProfile)[0] || 'V').toUpperCase());
-  $('#meAvatar').src = av;
-  $('#heroTags').innerHTML = (meProfile?.hashtags || []).slice(0,8).map(t => `<span class="chip">#${esc(t)}</span>`).join('') || '<span class="muted small">Теги не добавлены</span>';
-  $('#heroGames').innerHTML = (meProfile?.games || []).slice(0,8).map(g => `<span class="chip">${esc(g)}</span>`).join('') || '<span class="muted small">Игры не добавлены</span>';
-}
-
-function matchesUser(u, q) {
-  q = asNickQuery(q);
-  if (!q) return true;
-  const hay = [
-    u.nickname, u.description, u.email,
-    ...(u.hashtags || []), ...(u.games || [])
-  ].join(' ').toLowerCase();
-  return hay.includes(q);
-}
-
-function renderUsers(list, me) {
-  $('#peopleCount').textContent = list.length;
-  $('#onlineCount').textContent = list.filter(u => nowMs() - (u.lastSeen || 0) < 2*60*1000).length;
-  $('#publicCount').textContent = `${list.length} профилей`;
-
-  $('#userList').innerHTML = '';
-  list.slice(0, 60).forEach(u => {
-    const item = el('div', { class:'item' });
-    item.dataset.uid = u.uid;
-    item.innerHTML = `
-      <img class="avatar" src="${esc(u.avatarDataUrl || avatarFallback((userName(u)[0] || 'V').toUpperCase()))}" />
-      <div class="col" style="flex:1">
-        <div class="row" style="justify-content:space-between;gap:10px">
-          <div class="name">${esc(userName(u))}</div>
-          <div class="mini">${esc(lastSeenText(u.lastSeen))}</div>
+function renderMe(profile, user){
+  meCard.innerHTML = `
+    <div class="row" style="align-items:flex-start">
+      ${avatarHtml(profile, 'big')}
+      <div class="col grow">
+        <div class="row wrap" style="justify-content:space-between">
+          <div>
+            <div class="name" style="font-size:22px">${esc(profile?.nick || 'Профиль')}</div>
+            <div class="small">${esc(profile?.about || 'Добавь описание в профиле')}</div>
+          </div>
+          <span class="pill">${profile?.tags?.length || 0} тэгов</span>
         </div>
-        <div class="desc">${esc(u.description || '')}</div>
-        <div class="row wrap">${(u.hashtags || []).slice(0,3).map(t => `<span class="pill">#${esc(t)}</span>`).join('')}</div>
-      </div>`;
-    item.onclick = () => goToChat(u.uid);
-    $('#userList').appendChild(item);
-  });
-  if (!list.length) $('#userList').innerHTML = '<div class="muted small">Никого не нашли.</div>';
-}
-
-function renderChats(list, userMap, me) {
-  $('#chatCount').textContent = list.length;
-  $('#chatList').innerHTML = '';
-  list.slice(0, 30).forEach(c => {
-    const otherId = (c.participants || []).find(x => x !== me.uid);
-    const other = userMap.get(otherId) || {};
-    const item = el('div', { class:'item' });
-    item.dataset.uid = otherId;
-    item.innerHTML = `
-      <img class="avatar" src="${esc(other.avatarDataUrl || avatarFallback((userName(other)[0] || 'V').toUpperCase()))}" />
-      <div class="col" style="flex:1">
-        <div class="row" style="justify-content:space-between;gap:10px">
-          <div class="name">${esc(userName(other))}</div>
-          <div class="mini">${esc(fmtTime(c.updatedAt))}</div>
+        <div class="row wrap">${(profile?.games || []).slice(0,4).map(g => `<span class="chip soft">${esc(g)}</span>`).join('')}</div>
+        <div class="row wrap">
+          <a class="btn secondary" href="profile.html">Профиль</a>
+          <a class="btn secondary" href="popular.html">Популярное</a>
         </div>
-        <div class="desc">${esc(c.lastMessage || 'Открой чат')}</div>
-      </div>`;
-    item.onclick = () => goToChat(otherId);
-    $('#chatList').appendChild(item);
-  });
-  if (!list.length) $('#chatList').innerHTML = '<div class="muted small">Пока чатов нет.</div>';
+      </div>
+    </div>
+  `;
 }
 
-requireAuth(async (user) => {
-  startPresenceHeartbeat();
-  await renderMe(user);
-  $('#logoutBtn').onclick = signOutSafe;
-
-  const userSnap = await db.collection('users').get();
-  allUsers = userSnap.docs.map(d => d.data()).filter(u => u.uid && u.uid !== user.uid);
-
-  const chatSnap = await db.collection('chats')
-    .where('participants', 'array-contains', user.uid)
-    .orderBy('updatedAt', 'desc')
-    .limit(40)
-    .get()
-    .catch(async () => await db.collection('chats').where('participants', 'array-contains', user.uid).limit(40).get());
-
-  chats = chatSnap.docs.map(d => ({ id:d.id, ...d.data() }));
-  const needed = [...new Set(chats.map(c => (c.participants || []).find(x => x !== user.uid)).filter(Boolean))];
-  const userMap = new Map();
-  await Promise.all(needed.map(async id => userMap.set(id, await loadProfile(id))));
-
-  renderChats(chats, userMap, user);
-  renderUsers(allUsers.sort((a,b) => (b.lastSeen || 0) - (a.lastSeen || 0)), user);
-
-  $('#searchUser').addEventListener('input', e => {
-    const q = e.target.value;
-    renderUsers(allUsers.filter(u => matchesUser(u, q)).sort((a,b) => (b.lastSeen || 0) - (a.lastSeen || 0)), user);
+function renderFastPopular(usersData){
+  const tagCount = new Map();
+  const gameCount = new Map();
+  usersData.forEach(u => {
+    (u.tags || []).forEach(t => tagCount.set(t, (tagCount.get(t) || 0) + 1));
+    (u.games || []).forEach(g => gameCount.set(g, (gameCount.get(g) || 0) + 1));
   });
+  const topTags = [...tagCount.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const topGames = [...gameCount.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5);
+  fastPopular.innerHTML = `
+    <div>
+      <div class="small">Хештеги</div>
+      <div class="list" style="gap:8px;margin-top:8px">${topTags.length ? topTags.map(([k,v])=>`<div class="item" style="cursor:default"><div class="col grow"><div class="name">${esc(k)}</div><div class="small">${v} профилей</div></div></div>`).join('') : '<div class="empty">Пока нет данных</div>'}</div>
+    </div>
+    <div>
+      <div class="small">Игры и фандомы</div>
+      <div class="list" style="gap:8px;margin-top:8px">${topGames.length ? topGames.map(([k,v])=>`<div class="item" style="cursor:default"><div class="col grow"><div class="name">${esc(k)}</div><div class="small">${v} профилей</div></div></div>`).join('') : '<div class="empty">Пока нет данных</div>'}</div>
+    </div>
+  `;
+}
 
-  const meLoaded = await loadProfile(user.uid);
-  $('#meAvatar').src = meLoaded?.avatarDataUrl || avatarFallback((userName(meLoaded)[0] || 'V').toUpperCase());
-  $('#meName').textContent = userName(meLoaded);
-  $('#meDesc').textContent = meLoaded?.description || 'Без описания';
-  $('#meState').textContent = lastSeenText(meLoaded?.lastSeen);
+function renderPeople(){
+  const q = nickKey(currentSearch);
+  const list = allUsers.filter(u => u.uid !== me?.user?.uid).filter(u => !q || nickKey(u.nick).includes(q) || (u.about && nickKey(u.about).includes(q)) || (u.tags || []).join(' ').toLowerCase().includes(q) || (u.games || []).join(' ').toLowerCase().includes(q));
+  peopleEl.innerHTML = list.length ? list.map(u => `
+    <div class="item" data-uid="${u.uid}">
+      ${avatarHtml(u)}
+      <div class="col grow">
+        <div class="row wrap" style="justify-content:space-between">
+          <div class="name">${esc(u.nick || 'Без ника')}</div>
+          <span class="pill">${onlineLabel(u.lastSeen)}</span>
+        </div>
+        <div class="desc">${esc(u.about || 'Нет описания')}</div>
+        <div class="row wrap">${(u.tags || []).slice(0,3).map(t=>`<span class="chip soft">${esc(t)}</span>`).join('')} ${(u.games || []).slice(0,2).map(g=>`<span class="chip soft">${esc(g)}</span>`).join('')}</div>
+      </div>
+    </div>
+  `).join('') : '<div class="empty">Никого не нашли</div>';
+  peopleEl.querySelectorAll('[data-uid]').forEach(el => el.addEventListener('click', () => openChat(el.dataset.uid)));
+  onlineCount.textContent = `${list.filter(u => u.lastSeen && u.lastSeen.toDate && Date.now() - u.lastSeen.toDate().getTime() < 10*60*1000).length} онлайн`;
+}
+
+function renderContacts(){
+  const items = [...chatProfiles.values()].sort((a,b)=> (b.updatedAt?.toMillis?.() || 0) - (a.updatedAt?.toMillis?.() || 0));
+  contactsEl.innerHTML = items.length ? items.map(c => `
+    <div class="item" data-uid="${c.uid}">
+      ${avatarHtml(c)}
+      <div class="col grow">
+        <div class="row wrap" style="justify-content:space-between">
+          <div class="name">${esc(c.nick || 'Без ника')}</div>
+          <span class="pill">${timeAgo(c.updatedAt)}</span>
+        </div>
+        <div class="desc">${esc(c.lastMessage || 'Нет сообщений')}</div>
+      </div>
+    </div>
+  `).join('') : '<div class="empty">Пока пусто. Найди человека по нику и начни чат.</div>';
+  contactsEl.querySelectorAll('[data-uid]').forEach(el => el.addEventListener('click', () => openChat(el.dataset.uid)));
+}
+
+function bindChats(user){
+  chats.where('participants', 'array-contains', user.uid).onSnapshot(async snap => {
+    const entries = [];
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      const peerUid = (data.participants || []).find(x => x !== user.uid);
+      const profile = peerUid ? allUsers.find(u => u.uid === peerUid) || await getUser(peerUid) : null;
+      if (!profile) continue;
+      entries.push({
+        uid: peerUid,
+        nick: profile.nick || 'Без ника',
+        avatarData: profile.avatarData,
+        photoURL: profile.photoURL,
+        lastMessage: data.lastMessage || '',
+        updatedAt: data.updatedAt,
+        tags: profile.tags || [],
+        games: profile.games || [],
+        about: profile.about || ''
+      });
+    }
+    chatProfiles = new Map(entries.map(e => [e.uid, e]));
+    renderContacts();
+  });
+}
+
+function bindUsers(){
+  users.orderBy('lastSeen', 'desc').limit(120).onSnapshot(snap => {
+    allUsers = snap.docs.map(d => d.data()).filter(Boolean);
+    renderPeople();
+    renderFastPopular(allUsers);
+    if (me) renderMe(me.data, me.user);
+  });
+}
+
+search.addEventListener('input', () => {
+  currentSearch = search.value.trim();
+  renderPeople();
 });
 
-startPresenceHeartbeat();
+document.getElementById('logoutLink').addEventListener('click', async (e) => {
+  e.preventDefault();
+  await auth.signOut();
+  location.href = 'register.html';
+});
+
+requireAuth(async user => {
+  me = await getMe();
+  renderMe(me?.data || {}, user);
+  bindUsers();
+  bindChats(user);
+  setInterval(() => touchPresence(user), 60000);
+});
+
 </script>
 </body>
 </html>
