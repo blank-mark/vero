@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Vero • популярное</title>
+<title>Vero • вход</title>
 <style>
 :root{
   --bg:#eef4ef;
@@ -343,110 +343,154 @@ function safeText(text='') {
 <script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore-compat.js"></script>
 
-<div class="topbar">
-  <div class="brand">
-    <div class="logo">V</div>
-    <div>
-      <div style="font-weight:1000">Vero</div>
-      <div class="small muted">популярное</div>
+<div class="wrap">
+  <div class="grid2" style="min-height:calc(100vh - 36px);align-items:center">
+    <div class="stack">
+      <div class="chip">Vero • green accent • Firebase</div>
+      <h1 style="margin:0;font-size:42px;line-height:1.05">Мессенджер со звонками, профилем и фандомами</h1>
+      <p class="sub">Google или email-пароль, никнейм, аватарка-рисовалка, хештеги, игры и отдельный чат с каждым человеком.</p>
+      <div class="hero">
+        <div class="row wrap" style="gap:8px">
+          <span class="pill">поиск по нику</span>
+          <span class="pill">люди онлайн</span>
+          <span class="pill">профиль с тегами</span>
+          <span class="pill">WebRTC звонки</span>
+        </div>
+      </div>
     </div>
-  </div>
-  <div class="row">
-    <a class="btn secondary" href="app.html">Чаты</a>
-    <a class="btn secondary" href="profile.html">Профиль</a>
-    <button class="btn danger" id="logoutBtn">Выйти</button>
+
+    <div class="card pad">
+      <div class="tabs" style="margin-bottom:12px">
+        <div class="tab active" data-mode="login">Вход</div>
+        <div class="tab" data-mode="register">Регистрация</div>
+      </div>
+
+      <div class="stack" id="panelLogin">
+        <input class="input" id="loginEmail" type="email" placeholder="Почта" />
+        <input class="input" id="loginPass" type="password" placeholder="Пароль" />
+        <button class="btn block" id="btnLogin">Войти</button>
+        <button class="btn secondary block" id="btnGoogle">Google</button>
+      </div>
+
+      <div class="stack" id="panelRegister" style="display:none">
+        <input class="input" id="regEmail" type="email" placeholder="Почта" />
+        <input class="input" id="regPass" type="password" placeholder="Пароль" />
+        <input class="input" id="regNick" type="text" placeholder="Никнейм" />
+        <button class="btn block" id="btnRegister">Создать аккаунт</button>
+        <button class="btn secondary block" id="btnGoogle2">Google</button>
+      </div>
+
+      <div class="divider"></div>
+      <div class="small muted">После входа профиль создаётся автоматически.</div>
+    </div>
   </div>
 </div>
 
-<div class="wrap stack">
-  <div class="hero card pad">
-    <h1 style="margin:0;font-size:32px">Самое популярное</h1>
-    <p class="sub">Топ хештегов, игр и людей по профилям, которые уже заполнили.</p>
-  </div>
-
-  <div class="grid3">
-    <div class="card pad stack">
-      <div class="row" style="justify-content:space-between">
-        <h2 class="title" style="font-size:18px">Хештеги</h2>
-        <span class="pill" id="tagTotal">0</span>
-      </div>
-      <div class="list" id="tagList"></div>
-    </div>
-
-    <div class="card pad stack">
-      <div class="row" style="justify-content:space-between">
-        <h2 class="title" style="font-size:18px">Игры и фандомы</h2>
-        <span class="pill" id="gameTotal">0</span>
-      </div>
-      <div class="list" id="gameList"></div>
-    </div>
-
-    <div class="card pad stack">
-      <div class="row" style="justify-content:space-between">
-        <h2 class="title" style="font-size:18px">Люди</h2>
-        <span class="pill" id="peopleTotal">0</span>
-      </div>
-      <div class="list" id="peopleList"></div>
+<div class="modal" id="nickModal">
+  <div class="card pad">
+    <h2 class="title" style="margin-bottom:6px">Никнейм</h2>
+    <p class="sub">Для Google-аккаунта нужен ник перед входом в приложение.</p>
+    <div class="stack">
+      <input class="input" id="nickInput" type="text" placeholder="Например: VeroFox" />
+      <button class="btn block" id="saveNickBtn">Продолжить</button>
     </div>
   </div>
 </div>
 
 <script>
-function countFromUsers(users) {
-  const tagMap = new Map();
-  const gameMap = new Map();
-  users.forEach(u => {
-    (u.hashtags || []).forEach(t => tagMap.set(t, (tagMap.get(t) || 0) + 1));
-    (u.games || []).forEach(g => gameMap.set(g, (gameMap.get(g) || 0) + 1));
-  });
-  const tags = [...tagMap.entries()].sort((a,b) => b[1] - a[1]).slice(0, 15);
-  const games = [...gameMap.entries()].sort((a,b) => b[1] - a[1]).slice(0, 15);
-  return { tags, games };
+const tabs = $$('.tab');
+const panelLogin = $('#panelLogin');
+const panelRegister = $('#panelRegister');
+let pendingGoogleUser = null;
+
+tabs.forEach(t => t.addEventListener('click', () => {
+  tabs.forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  const mode = t.dataset.mode;
+  panelLogin.style.display = mode === 'login' ? 'grid' : 'none';
+  panelRegister.style.display = mode === 'register' ? 'grid' : 'none';
+}));
+
+async function finishEnter(user, nick='') {
+  const ref = db.collection('users').doc(user.uid);
+  const snap = await ref.get();
+  const data = snap.exists ? snap.data() : {};
+  const finalNick = cleanNick(nick || data.nickname || user.displayName || user.email?.split('@')[0] || '');
+  if (!finalNick) {
+    $('#nickModal').classList.add('on');
+    pendingGoogleUser = user;
+    return;
+  }
+  await ref.set({
+    uid: user.uid,
+    email: user.email || '',
+    nickname: finalNick,
+    description: data.description || '',
+    hashtags: data.hashtags || [],
+    games: data.games || [],
+    avatarDataUrl: data.avatarDataUrl || '',
+    lastSeen: nowMs(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  location.href = 'app.html';
 }
 
-requireAuth(async (user) => {
-  startPresenceHeartbeat();
-  $('#logoutBtn').onclick = signOutSafe;
-  const snap = await db.collection('users').get();
-  const users = snap.docs.map(d => d.data()).filter(u => u.uid && u.uid !== user.uid);
-  const { tags, games } = countFromUsers(users);
+$('#btnLogin').onclick = async () => {
+  try {
+    const cred = await auth.signInWithEmailAndPassword($('#loginEmail').value.trim(), $('#loginPass').value);
+    await ensureOwnProfile();
+    await finishEnter(cred.user);
+  } catch (err) { alert(err.message); }
+};
 
-  $('#tagTotal').textContent = `${tags.length} тегов`;
-  $('#gameTotal').textContent = `${games.length} игр`;
-  $('#peopleTotal').textContent = `${users.length} людей`;
+$('#btnRegister').onclick = async () => {
+  try {
+    const cred = await auth.createUserWithEmailAndPassword($('#regEmail').value.trim(), $('#regPass').value);
+    await ensureOwnProfile();
+    await finishEnter(cred.user, $('#regNick').value.trim());
+  } catch (err) { alert(err.message); }
+};
 
-  $('#tagList').innerHTML = tags.map(([name, count]) => `
-    <div class="item" style="cursor:default">
-      <div class="col">
-        <div class="name">#${esc(name)}</div>
-        <div class="mini">${count} упомин.</div>
-      </div>
-    </div>`).join('') || '<div class="muted small">Пока пусто</div>';
+async function googleFlow() {
+  try {
+    const cred = await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+    pendingGoogleUser = cred.user;
+    const snap = await db.collection('users').doc(cred.user.uid).get();
+    const data = snap.exists ? snap.data() : {};
+    if (!data.nickname) {
+      $('#nickModal').classList.add('on');
+      $('#nickInput').value = cleanNick(cred.user.displayName || cred.user.email?.split('@')[0] || '');
+      return;
+    }
+    await ensureOwnProfile();
+    await finishEnter(cred.user);
+  } catch (err) { alert(err.message); }
+}
+$('#btnGoogle').onclick = googleFlow;
+$('#btnGoogle2').onclick = googleFlow;
 
-  $('#gameList').innerHTML = games.map(([name, count]) => `
-    <div class="item" style="cursor:default">
-      <div class="col">
-        <div class="name">${esc(name)}</div>
-        <div class="mini">${count} профилей</div>
-      </div>
-    </div>`).join('') || '<div class="muted small">Пока пусто</div>';
+$('#saveNickBtn').onclick = async () => {
+  try {
+    const nick = cleanNick($('#nickInput').value);
+    if (!nick) return alert('Ник нужен');
+    if (!pendingGoogleUser) return;
+    await db.collection('users').doc(pendingGoogleUser.uid).set({
+      uid: pendingGoogleUser.uid,
+      email: pendingGoogleUser.email || '',
+      nickname: nick,
+      lastSeen: nowMs(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    $('#nickModal').classList.remove('on');
+    location.href = 'app.html';
+  } catch (err) { alert(err.message); }
+};
 
-  $('#peopleList').innerHTML = users
-    .sort((a,b) => ((b.hashtags?.length || 0) + (b.games?.length || 0)) - ((a.hashtags?.length || 0) + (a.games?.length || 0)))
-    .slice(0, 20)
-    .map(u => `
-      <div class="item" data-uid="${esc(u.uid)}">
-        <img class="avatar" src="${esc(u.avatarDataUrl || avatarFallback((userName(u)[0] || 'V').toUpperCase()))}">
-        <div class="col" style="flex:1">
-          <div class="row" style="justify-content:space-between;gap:10px">
-            <div class="name">${esc(userName(u))}</div>
-            <div class="mini">${esc(lastSeenText(u.lastSeen))}</div>
-          </div>
-          <div class="desc">${esc(u.description || '')}</div>
-        </div>
-      </div>`).join('') || '<div class="muted small">Пока никого нет</div>';
-
-  $$('#peopleList .item').forEach(el => el.onclick = () => goToChat(el.dataset.uid));
+auth.onAuthStateChanged(async user => {
+  if (!user) return;
+  await ensureOwnProfile();
+  const snap = await db.collection('users').doc(user.uid).get();
+  if (snap.exists && snap.data()?.nickname) location.href = 'app.html';
 });
 
 startPresenceHeartbeat();
