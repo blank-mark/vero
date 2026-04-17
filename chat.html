@@ -169,6 +169,14 @@ canvas{display:block;touch-action:none}
 .callActions{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:0 14px 14px}
 .kbd{font-size:12px;color:var(--muted);padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:#fafcfa}
 .notice{padding:12px 14px;border-radius:16px;background:#fff8e7;border:1px solid #f0ddb0;color:#745b17}
+.offscreen-audio{
+  position:fixed;
+  left:-9999px;
+  width:1px;
+  height:1px;
+  opacity:0;
+  pointer-events:none;
+}
 
 </style>
 </head>
@@ -220,7 +228,7 @@ canvas{display:block;touch-action:none}
       <div class="videobox">
         <div class="videolabel">Собеседник</div>
         <video id="remoteVideo" autoplay playsinline></video>
-        <audio id="remoteAudio" autoplay playsinline hidden></audio>
+        <audio id="remoteAudio" class="offscreen-audio" autoplay playsinline></audio>
       </div>
     </div>
     <div class="callControls">
@@ -470,14 +478,25 @@ function resetStreams(){
 }
 function closeOverlay(){ callOverlay.style.display = 'none'; }
 function openOverlay(){ callOverlay.style.display = 'flex'; }
-async function attachRemoteMedia(){
+async function safePlayMedia(el){
+  if (!el) return;
+  try {
+    await el.play();
+  } catch (e) {
+    console.warn('Media play failed:', e);
+  }
+}
+async function bindRemoteMedia(stream){
+  if (!stream) return;
+  remoteStream = stream;
   if (remoteVideo) {
-    remoteVideo.srcObject = remoteStream;
-    try { await remoteVideo.play(); } catch (_) {}
+    remoteVideo.srcObject = stream;
+    await safePlayMedia(remoteVideo);
   }
   if (remoteAudio) {
-    remoteAudio.srcObject = remoteStream;
-    try { await remoteAudio.play(); } catch (_) {}
+    remoteAudio.muted = false;
+    remoteAudio.srcObject = stream;
+    await safePlayMedia(remoteAudio);
   }
 }
 function updateButtons(){
@@ -486,7 +505,6 @@ function updateButtons(){
 }
 function setLocalVideoStream(){
   localVideo.srcObject = localStream;
-  attachRemoteMedia();
 }
 async function makeConnection(role){
   if (pc) {
@@ -496,13 +514,21 @@ async function makeConnection(role){
   audioSender = null;
   videoSender = null;
   remoteStream = new MediaStream();
-  remoteVideo.srcObject = remoteStream;
-  pc.ontrack = event => {
-    event.streams[0].getTracks().forEach(track => {
-      if (!remoteStream.getTracks().some(t => t.id === track.id)) remoteStream.addTrack(track);
-    });
-    remoteVideo.srcObject = remoteStream;
+
+  pc.ontrack = async event => {
+    const stream = event.streams && event.streams[0] ? event.streams[0] : null;
+    if (stream) {
+      await bindRemoteMedia(stream);
+      return;
+    }
+    event.track.onunmute = async () => {
+      if (!remoteStream.getTracks().some(t => t.id === event.track.id)) {
+        remoteStream.addTrack(event.track);
+      }
+      await bindRemoteMedia(remoteStream);
+    };
   };
+
   pc.onicecandidate = async event => {
     if (!event.candidate || !currentCall) return;
     const col = role === 'caller' ? 'callerCandidates' : 'calleeCandidates';
@@ -539,12 +565,14 @@ async function setupLocalMedia(video){
     }
   }
   setLocalVideoStream();
+  await safePlayMedia(localVideo);
 }
 
 async function startCaller(video){
   isVideo = video;
   openOverlay();
   updateButtons();
+  incomingAnswerAllowed = false;
   await makeConnection('caller');
   await setupLocalMedia(video);
   const offer = await pc.createOffer();
@@ -567,6 +595,7 @@ async function acceptIncoming(data){
   isVideo = !!data.video;
   openOverlay();
   updateButtons();
+  incomingAnswerAllowed = false;
   await makeConnection('callee');
   await setupLocalMedia(isVideo);
   await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
@@ -592,10 +621,11 @@ async function endCurrentCall(){
   if (pc) { pc.close(); pc = null; }
   if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
   remoteStream = new MediaStream();
-  remoteVideo.srcObject = null;
+  if (remoteVideo) remoteVideo.srcObject = null;
   if (remoteAudio) remoteAudio.srcObject = null;
-  localVideo.srcObject = null;
+  if (localVideo) localVideo.srcObject = null;
   currentCall = null;
+  incomingAnswerAllowed = false;
   closeOverlay();
   setCallState('');
 }
@@ -690,7 +720,6 @@ async function initChat(user){
       openOverlay();
       callOverlay.style.display = 'flex';
       callTitle.textContent = `Звонок с ${peer.nick}`;
-      attachRemoteMedia();
       setCallState('Входящий звонок');
       return;
     }
@@ -698,12 +727,12 @@ async function initChat(user){
       showNotice('');
       callTitle.textContent = `Звонок с ${peer.nick}`;
       openOverlay();
-      attachRemoteMedia();
     }
     if (data.status === 'ended') {
       if (pc) { pc.close(); pc = null; }
       resetStreams();
       currentCall = null;
+      incomingAnswerAllowed = false;
       setCallState('');
       closeOverlay();
       showNotice('Звонок завершён');
@@ -712,7 +741,6 @@ async function initChat(user){
       showNotice('Звонок идёт...');
       callTitle.textContent = `Звонок с ${peer.nick}`;
       openOverlay();
-      attachRemoteMedia();
     }
     if (data.answer && data.callerId === meUser.uid && pc && !incomingAnswerAllowed) {
       incomingAnswerAllowed = true;
@@ -750,6 +778,7 @@ toggleVideo.addEventListener('click', async () => {
     localStream = want;
     localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
     setLocalVideoStream();
+    await safePlayMedia(localVideo);
   }
 });
 
