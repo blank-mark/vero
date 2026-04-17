@@ -142,6 +142,11 @@ canvas{display:block;touch-action:none}
 }
 .msg.me{margin-left:auto;background:#edf8f0;border-color:#cfe8d5}
 .msg .meta{margin-top:6px;font-size:11px;color:var(--muted)}
+
+.msg .meta{margin-top:6px;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.msg .seen{font-weight:800;color:var(--accent2)}
+.msg .delMsg{border:none;background:transparent;color:var(--danger);font-size:11px;padding:0;cursor:pointer}
+.msg .delMsg:hover{text-decoration:underline}
 .chatHead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px}
 .chatPeer{display:flex;align-items:center;gap:12px;min-width:0}
 .chatPeer .col{min-width:0}
@@ -215,6 +220,7 @@ canvas{display:block;touch-action:none}
       <div class="videobox">
         <div class="videolabel">Собеседник</div>
         <video id="remoteVideo" autoplay playsinline></video>
+        <audio id="remoteAudio" autoplay playsinline hidden></audio>
       </div>
     </div>
     <div class="callControls">
@@ -430,6 +436,7 @@ const callTitle = document.getElementById('callTitle');
 const callStatus = document.getElementById('callStatus');
 const localVideo = document.getElementById('localVideo');
 const remoteVideo = document.getElementById('remoteVideo');
+const remoteAudio = document.getElementById('remoteAudio');
 const toggleVideo = document.getElementById('toggleVideo');
 const toggleMute = document.getElementById('toggleMute');
 const endCall = document.getElementById('endCall');
@@ -457,18 +464,29 @@ function setCallState(text){ callStatus.textContent = text; }
 function resetStreams(){
   if (localVideo) localVideo.srcObject = null;
   if (remoteVideo) remoteVideo.srcObject = null;
+  if (remoteAudio) remoteAudio.srcObject = null;
   if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
   remoteStream = new MediaStream();
 }
 function closeOverlay(){ callOverlay.style.display = 'none'; }
 function openOverlay(){ callOverlay.style.display = 'flex'; }
+async function attachRemoteMedia(){
+  if (remoteVideo) {
+    remoteVideo.srcObject = remoteStream;
+    try { await remoteVideo.play(); } catch (_) {}
+  }
+  if (remoteAudio) {
+    remoteAudio.srcObject = remoteStream;
+    try { await remoteAudio.play(); } catch (_) {}
+  }
+}
 function updateButtons(){
   toggleVideo.textContent = `Видео: ${isVideo ? 'вкл' : 'выкл'}`;
   toggleMute.textContent = `Микрофон: ${isMuted ? 'выкл' : 'вкл'}`;
 }
 function setLocalVideoStream(){
   localVideo.srcObject = localStream;
-  remoteVideo.srcObject = remoteStream;
+  attachRemoteMedia();
 }
 async function makeConnection(role){
   if (pc) {
@@ -575,19 +593,46 @@ async function endCurrentCall(){
   if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
   remoteStream = new MediaStream();
   remoteVideo.srcObject = null;
+  if (remoteAudio) remoteAudio.srcObject = null;
   localVideo.srcObject = null;
   currentCall = null;
   closeOverlay();
   setCallState('');
 }
 
+async function deleteMessage(id){
+  if (!id || !chatRef) return;
+  if (!confirm('Удалить сообщение?')) return;
+  await chatRef.collection('messages').doc(id).delete();
+}
+
+async function markMessagesSeen(list){
+  if (!chatRef || !meUser) return;
+  const unseen = list.filter(m => m.senderId !== meUser.uid && !m.seenAt && m.id);
+  if (!unseen.length) return;
+  await Promise.allSettled(unseen.map(m =>
+    chatRef.collection('messages').doc(m.id).set({
+      seenAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true })
+  ));
+}
+
 function renderMessages(list){
-  msgs.innerHTML = list.length ? list.map(m => `
-    <div class="msg ${m.senderId === meUser.uid ? 'me' : ''}">
+  msgs.innerHTML = list.length ? list.map(m => {
+    const mine = m.senderId === meUser.uid;
+    const seen = mine ? (m.seenAt ? '✓✓ просмотрено' : '✓ отправлено') : '';
+    return `
+    <div class="msg ${mine ? 'me' : ''}">
       <div>${esc(m.text || '')}</div>
-      <div class="meta">${m.senderId === meUser.uid ? 'ты' : peer?.nick || 'он'} • ${formatTime(m.createdAt)}</div>
+      <div class="meta">
+        <span>${mine ? 'ты' : esc(peer?.nick || 'он')}</span>
+        <span>•</span>
+        <span>${formatTime(m.createdAt)}</span>
+        ${mine ? `<span class="seen">${seen}</span>` : ''}
+        ${mine ? `<button class="delMsg" type="button" onclick="deleteMessage('${m.id}')">Удалить</button>` : ''}
+      </div>
     </div>
-  `).join('') : '<div class="empty">Здесь пока пусто</div>';
+  `;}).join('') : '<div class="empty">Здесь пока пусто</div>';
   msgs.scrollTop = msgs.scrollHeight;
 }
 
@@ -598,7 +643,8 @@ async function sendMessage(){
     text,
     senderId: meUser.uid,
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    type: 'text'
+    type: 'text',
+    seenAt: null
   });
   await chatRef.set({ lastMessage: text, lastSenderId: meUser.uid, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
   message.value = '';
@@ -630,8 +676,9 @@ async function initChat(user){
   chatRef = db.collection('chats').doc(chatIdFor(user.uid, peerUid));
   await ensureChat(user.uid, peerUid);
   messageUnsub = chatRef.collection('messages').orderBy('createdAt', 'asc').limit(200).onSnapshot(snap => {
-    const list = snap.docs.map(d => d.data() || {});
+    const list = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
     renderMessages(list);
+    markMessagesSeen(list);
   });
   callUnsub = calls.doc(chatRef.id).onSnapshot(async snap => {
     const data = snap.exists ? snap.data() : null;
@@ -643,6 +690,7 @@ async function initChat(user){
       openOverlay();
       callOverlay.style.display = 'flex';
       callTitle.textContent = `Звонок с ${peer.nick}`;
+      attachRemoteMedia();
       setCallState('Входящий звонок');
       return;
     }
@@ -650,6 +698,7 @@ async function initChat(user){
       showNotice('');
       callTitle.textContent = `Звонок с ${peer.nick}`;
       openOverlay();
+      attachRemoteMedia();
     }
     if (data.status === 'ended') {
       if (pc) { pc.close(); pc = null; }
@@ -663,6 +712,7 @@ async function initChat(user){
       showNotice('Звонок идёт...');
       callTitle.textContent = `Звонок с ${peer.nick}`;
       openOverlay();
+      attachRemoteMedia();
     }
     if (data.answer && data.callerId === meUser.uid && pc && !incomingAnswerAllowed) {
       incomingAnswerAllowed = true;
